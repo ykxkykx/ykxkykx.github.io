@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<search>
+  <entry>
+    <title><![CDATA[cesium超速入门总结]]></title>
+    <url>%2Farchives%2F284d6472.html</url>
+    <content type="text"><![CDATA[由于工作原因，做了一些有关 cesium 的三维地图开发。基于我所用到的功能，于此做一个入门总结，并记录下曾踩下的坑。初学者可依照以下整个完整流程，复现功能内容。做此记录时，cesium 版本为 ^1.64.0 注：这里虽然利用了 npm 或 yarn 来快速安装 cesium ，但实际的demo只需直接引用文件，不需要打包 测试用demo路径结构描述1234cesium-demo├─node_modules/├─index.html└─package.json 准备工作开发环境建议使用 VSCode 进行开发，并安装插件 Live Server，用于启动此 index.html 文件 安装cesium1234# 在 cesium-demo 目录下输入如下命令npm install --save cesium# 或者yarn add cesium index.html文件初始化12345678910111213141516171819202122&lt;!DOCTYPE html&gt;&lt;html lang="en"&gt;&lt;head&gt; &lt;meta charset="UTF-8"&gt; &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt; &lt;meta http-equiv="X-UA-Compatible" content="ie=edge"&gt; &lt;title&gt;Cesium-test&lt;/title&gt; &lt;script src="./node_modules/cesium/Build/Cesium/Cesium.js"&gt;&lt;/script&gt; &lt;style&gt; @import url("./node_modules/cesium/Build/Cesium/Widgets/widgets.css"); html, body, #cesiumContainer &#123; width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; &#125; &lt;/style&gt;&lt;/head&gt;&lt;body&gt; &lt;div id="cesiumContainer"&gt;&lt;/div&gt; &lt;script&gt; const viewer = new Cesium.Viewer('cesiumContainer'); // 这里直接传入的也可以是获取到的cesiumContainer的dom元素对象 &lt;/script&gt;&lt;/body&gt;&lt;/html&gt; 初始界面预览 常用初始化配置以下内容不会给出完整代码，但会给出完整核心代码片段，读者对照初始化 index.html 自行增添或者更改即可运行，若出现误差，可尝试把 cesium 版本调整到 ^1.64.0。以下 js 代码均直接在 script 标签全局命名空间中出现。 隐藏界面小控件通过初试配置，将界面上默认显示的控件隐藏，以便进行自定义12345678910const viewer = new Cesium.Viewer('cesiumContainer', &#123; animation: false, // 隐藏界面左下角控制动画的面板 baseLayerPicker: false, // 隐藏界面左上角地图底图的切换按钮 fullscreenButton: false, // 隐藏界面右下角全屏按钮 geocoder: false, // 隐藏界面右上角搜索按钮 homeButton: false, // 隐藏界面右上角初始化地球位置按钮 sceneModePicker: false, // 隐藏界面右上角视角切换按钮 timeline: false, // 隐藏正下方时间线 navigationHelpButton: false, // 隐藏右上角帮助按钮&#125;); 仅仅是如此设置，底部还剩一段图片加文字信息，这里可以通过 css 手动隐藏。在 style 中添加如下代码。123.cesium-viewer-bottom &#123; display: none;&#125; 如此，一个干净完整的地球便出现了 去掉光圈如果有人觉得地球外层的光圈太扎眼，可以通过以下方式去除1234const viewer = new Cesium.Viewer('cesiumContainer', &#123; // ... skyAtmosphere: false,&#125;); 效果如下 聚焦框和信息框的隐藏默认情况下，如果左键双击 cesium 地图上的实体内容，camera 视角会自动聚焦过去，并显示自带的聚焦框以及实体的信息框，如下默认不显示聚焦框和信息框12345const viewer = new Cesium.Viewer('cesiumContainer', &#123; // ... selectionIndicator: false, // 隐藏聚焦框 infoBox: false, // 隐藏信息框&#125;); 取消默认的左键双击实体效果，便于自定义其他交互1viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK); 地形加载初始化时默认加载地形1234567const viewer = new Cesium.Viewer('cesiumContainer', &#123; // ... terrainProvider: Cesium.createWorldTerrain(&#123; requestWaterMask: true, requestVertexNormals: true &#125;)&#125;); 后期手动添加地形1234viewer.terrainProvider = Cesium.createWorldTerrain(&#123; requestWaterMask: true, requestVertexNormals: true&#125;); 坑：此方法加载地形时，加载的是 cesium 自己发布的地形服务。一旦 cesium 官方版本更新，则会导致地形加载失败（默认加载的底图也是如此）。浏览器控制台会报Token过期的错，但是实际上就算你更改了 Cesium.Ion.defaultAccessToken 的值仍然不能解决此问题。正确操作是，升级项目的 cesium 版本即可。最好的方法是，发布自己的地形以及底图服务，并加载。这样就不会受到 cesium 版本更新的影响。 底图服务加载imageryProvider 除了下面示例的 ArcGisMapServerImageryProvider 以外，还有分别用于加载其他不同框架底图服务的构造函数，具体内容，可在官方文档中搜索 imageryProvider 查询。初始化默认加载其他底图123456const viewer = new Cesium.Viewer('cesiumContainer', &#123; // ... imageryProvider: new Cesium.ArcGisMapServerImageryProvider(&#123; url: 'https://map.geoq.cn/arcgis/rest/services/ChinaOnlineStreetPurplishBlue/MapServer' &#125;)&#125;); 后期手动添加底图123viewer.imageryLayers.addImageryProvider(new Cesium.ArcGisMapServerImageryProvider(&#123; url: 'https://map.geoq.cn/arcgis/rest/services/ChinaOnlineStreetPurplishBlue/MapServer'&#125;)); 效果展示注：此坑与地形等同 视角转换123456789101112viewer.scene.camera.flyTo(&#123; destination: new Cesium.Cartesian3.fromDegrees(106.49673, 29.61736, 1500), // 经纬度，高度 orientation: &#123; heading: 0, pitch: -0.52458664812464143, roll: 2.0174972803488345e-11 &#125;, duration: 2, complete: () =&gt; &#123; // 飞行结束后执行逻辑 &#125;&#125;); camera 相关的所有操作在此处查看 较为常用功能以下内容，涉及到具体私人发布使用的服务部分，只给出最为核心的代码片段，如何实现。需要读者自行发布或寻找服务进行测试 geojson的加载使用1234567891011const jsonUrl = '...'; // 你的 geojson 文件路径，可以是本地相对路径const mapJSON = Cesium.GeoJsonDataSource.load(jsonUrl, &#123; // 对 geojson 文件的初始配置，可在 https://cesium.com/docs/cesiumjs-ref-doc/GeoJsonDataSource.html 查看详情&#125;);viewer.dataSources.add(mapJSON); // 将其加载到地图上去mapJSON.then(entities =&gt; &#123; // entities 是该 geojson 内部所有实体的数组，可对实体进行属性变更的操作 entities.forEach(entity =&gt; &#123; entity.show = false; // 隐藏该实体 &#125;);&#125;); 针对高精度倾斜摄影加载及显示效果优化倾斜摄影数据以 3dtile 的形式加载出来，通常情况下，只需要有 url 就足够了。以下参数是由于倾斜摄影数据总数据太大，清晰度过高，从而调节参数进行性能优化。这不是一个通用的解决方案，但可以以此为参考。1234567891011121314151617181920212223242526272829303132333435const tileSetPromise = new Cesium.Cesium3DTileset(&#123; url: '...', // 你的倾斜摄影服务发布地址 skipLevelOfDetail: true, baseScreenSpaceError: 1024, maximumScreenSpaceError: 256, // 数值加大，能让最终成像变模糊 skipScreenSpaceErrorFactor: 16, skipLevels: 1, immediatelyLoadDesiredLevelOfDetail: false, loadSiblings: true, // 如果为true则不会在已加载完概况房屋后，自动从中心开始超清化房屋 cullWithChildrenBounds: true, cullRequestsWhileMoving: true, cullRequestsWhileMovingMultiplier: 10, // 值越小能够更快的剔除 preloadWhenHidden: true, preferLeaves: true, maximumMemoryUsage: 128, // 内存分配变小有利于倾斜摄影数据回收，提升性能体验 progressiveResolutionHeightFraction: 0.5, // 数值偏于0能够让初始加载变得模糊 dynamicScreenSpaceErrorDensity: 0.1, // 数值加大，能让周边加载变快 dynamicScreenSpaceErrorFactor: 1, // 不知道起了什么作用没，反正放着吧先 dynamicScreenSpaceError: true // 根据测试，有了这个后，会在真正的全屏加载完之后才清晰化房屋&#125;);tileSetPromise.readyPromise.then(tileSet =&gt; &#123; this.scene.primitives.add(tileSet); // 将倾斜摄影实体加载到地图上 this.changeHeight(tileSet, 310); // 将此 tileSet 提高 310 米&#125;);// 可通过此函数，来修改 tileSet 的高度function changeHeight(tileSet, height) &#123; height = Number(height); if (isNaN(height)) &#123; return; &#125; const cartographic = Cesium.Cartographic.fromCartesian(tileSet.boundingSphere.center); const surface = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, cartographic.height); const offset = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, height); const translation = Cesium.Cartesian3.subtract(offset, surface, new Cesium.Cartesian3()); tileSet.modelMatrix = Cesium.Matrix4.fromTranslation(translation);&#125; 限制camera高度的上下限12viewer.scene.screenSpaceCameraController.maximumZoomDistance = 65000; // 相机高度的最大值设定为 65000 米viewer.scene.screenSpaceCameraController.minimumZoomDistance = 1000; // 相机高度的最小值设定为 1000 米 事件绑定1234const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);handler.setInputAction(movement =&gt; &#123; // movement.position 是一个 Cartesian2 对象，可以通过它拿到所点击的屏幕坐标&#125;, Cesium.ScreenSpaceEventType.LEFT_CLICK); // 监听左键点击 通过Cartesian2获得经纬度的方式1234567const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);handler.setInputAction(movement =&gt; &#123; const cartesian = this.scene.globe.pick(this.camera.getPickRay(movement.position), this.scene); // 获取空间坐标 const cartographic = Cesium.Cartographic.fromCartesian(cartesian); const lon = Cesium.Math.toDegrees(cartographic.longitude); // 经度 const lat = Cesium.Math.toDegrees(cartographic.latitude); // 纬度&#125;, Cesium.ScreenSpaceEventType.LEFT_CLICK); // 监听左键点击 地图二三维转化1234// 地图转化为三维立体状态viewer.scene.morphTo3D(0);// 地图转化为二维平面状态viewer.scene.morphTo2D(0);]]></content>
+      <categories>
+        <category>技术相关</category>
+        <category>三维地图</category>
+      </categories>
+      <tags>
+        <tag>js</tag>
+        <tag>cesium</tag>
+        <tag>三维地图</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title><![CDATA[简单的网页数字变更动画实现]]></title>
+    <url>%2Farchives%2Fa200942e.html</url>
+    <content type="text"><![CDATA[通常情况下，数字在网页中的变化是直接转变为另一个值。而如果在数字转化的过程中，每次改变一点点，最终转变为另一个值，会让干硬的网页变得更加生动一点。 分析拆解数字变更的整个周期，主要分为三个状态。 数字的初始状态（即原始值 数字变化中的状态（原始值到新赋值之间的变动 数字的结束状态（即新赋值 状态的变化可能性 数字一次性由少变到多，或者由多变到少 数字变化状态中，多次改变结束状态的值 这里解释下两种变化可能性，第一种就是说，数字的变化从少到多或者从多到少，都是一次性变化，中间不会有任何干扰。而第二种，打个比方，初始值为1，新赋值为10，数字在从1到10的渐变中，还没有变化完全，仅仅变到了7的时候，就被用户再一次改变了新赋值为5或者20（即可能比第一个新赋值低，也可能高）。这个时候，应该顺应此时已经变化到的数值7，以7为起点，向着5或者20去渐增或者渐减。不然，重新以1为起点开始向5或者20进行变化，就会有违和感。而顺应已经变化到的值进行变化，即便中途进行了再多次数值变更，整体的变化仍是流畅自然的。 代码实现1234567891011121314151617181920212223242526272829303132333435363738394041424344454647484950515253545556575859606162636465666768697071727374757677787980818283848586878889909192939495&lt;!DOCTYPE html&gt;&lt;html lang="en"&gt;&lt;head&gt; &lt;meta charset="UTF-8"&gt; &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt; &lt;meta http-equiv="X-UA-Compatible" content="ie=edge"&gt; &lt;title&gt;数值变化测试demo&lt;/title&gt; &lt;style&gt; html, body &#123; margin: 0; padding: 0; height: 100%; width: 100%; background-color: cornflowerblue; &#125; #app &#123; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; align-content: center; &#125; .num &#123; width: 100%; font-size: 100px; margin-bottom: 15px; text-align: center; &#125; &lt;/style&gt;&lt;/head&gt;&lt;body&gt; &lt;div id="app"&gt; &lt;div class="num"&gt;&#123;&#123; num.a &#125;&#125;&lt;/div&gt; &lt;button class="btn" @click="change(1)"&gt;1&lt;/button&gt; &lt;button class="btn" @click="change(5)"&gt;5&lt;/button&gt; &lt;button class="btn" @click="change(10)"&gt;10&lt;/button&gt; &lt;button class="btn" @click="change(20)"&gt;20&lt;/button&gt; &lt;button class="btn" @click="change(50)"&gt;50&lt;/button&gt; &lt;button class="btn" @click="change(75)"&gt;75&lt;/button&gt; &lt;button class="btn" @click="change(100)"&gt;100&lt;/button&gt; &lt;/div&gt; &lt;script src="https://cdn.jsdelivr.net/npm/vue"&gt;&lt;/script&gt; &lt;script&gt; new Vue(&#123; el: '#app', data: &#123; num: &#123; a: 0 &#125;, aniMap: new Map() &#125;, methods: &#123; change(newNum) &#123; this.numAni(this.num, 'a', newNum, 0); &#125;, // obj: 数字所在对象, key: 数字属性, newVal: 新变化的值，decimal: 变化期间的小数位数, name: 不同对象出现相同key值时，可自主设定name进行区分 numAni(obj, key, newVal, decimal, name) &#123; newVal = Number(newVal); // 处理可能是字符串的数字内容 const mapKey = name || key; if (this.aniMap.has(mapKey)) &#123; clearInterval(this.aniMap.get(mapKey)); this.aniMap.delete(mapKey); &#125; const diff = newVal - obj[key]; // 差值 if (diff === 0) &#123; return; &#125; let ch = Number((Math.abs(diff) / 11).toFixed(decimal)); // 将变化的差值分作11份，进行10次变化 ch = ch &lt;= 1 &amp;&amp; decimal === 0 ? 1 : ch; let count = 0; const timer = setInterval(() =&gt; &#123; let tempNum = Number(obj[key]); if (count &lt; 10) &#123; count += 1; tempNum += diff &lt; 0 ? -ch : ch; obj[key] = Number(tempNum.toFixed(decimal)); if (obj[key] === newVal) &#123; obj[key] = newVal.toString(); clearInterval(timer); &#125; &#125; else &#123; obj[key] = newVal.toString(); this.aniMap.delete(mapKey); clearInterval(timer); &#125; &#125;, 20); // 每单次变化耗时20ms this.aniMap.set(mapKey, timer); // 用于临时存储计时器返回值 &#125; &#125; &#125;) &lt;/script&gt;&lt;/body&gt;&lt;/html&gt; 注意事项 进行变化的数值变量，本身不能是一个单纯的基本变量，而应该存储在一个对象中。 此方法需要一个map来进行临时的计时器数据变量保存 展示效果]]></content>
+      <categories>
+        <category>技术相关</category>
+        <category>Web</category>
+      </categories>
+      <tags>
+        <tag>js</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title><![CDATA[在Vue工程中结合Element-Ui以及iconfont]]></title>
+    <url>%2Farchives%2Ff90b445.html</url>
+    <content type="text"><![CDATA[iconfont的下载使用首先，需要在阿里巴巴应用图标库中注册一个账号，然后找寻自己需要的图标，将他们加入购物车中。 然后点击购物车，将他们添加至同一个项目中（没有项目就新建）。进入我的项目 最后，只需将以下文件加入工程中 再在 main.js 文件中，引入 iconfont.css 文件即可，例如12// 路径为你自己存放的路径import '../../iconfont.css' 对iconfont.css 进行修改只需要修改 .iconfont 里面的内容就好12345678910111213141516/***除了font-family以外，其余内容与 element 框架中 icon 的配置相同*/.iconfont &#123; font-family: "iconfont" !important; speak: none; font-style: normal; font-weight: 400; font-variant: normal; text-transform: none; line-height: 1; vertical-align: baseline; display: inline-block; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;&#125; 在代码中直接使用1234567891011121314/*** 首先，保证 iconfont.css 文件里面这样的内容没被删除*/.icon-my-email:before &#123; content: "\e643";&#125;.icon-my-password:before &#123; content: "\e611";&#125;.icon-my-user:before &#123; content: "\e614";&#125; 这样我们就可以通过在 html 代码中使用，示例如下123&lt;i class="iconfont icon-my-email"&gt;&lt;/i&gt;&lt;!-- 也可以直接在 element 组件中直接使用 --&gt;&lt;el-input v-model="password" placeholder="密码" prefix-icon="iconfont icon-my-password" suffix-icon="el-icon-view"&gt;&lt;/el-input&gt;]]></content>
+      <categories>
+        <category>技术相关</category>
+        <category>Web</category>
+      </categories>
+      <tags>
+        <tag>Vue</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title><![CDATA[hexo博客实现url锚点与markdown分级标题同步]]></title>
+    <url>%2Farchives%2F6c1ee162.html</url>
+    <content type="text"><![CDATA[起因有的网页页面，可以在页面滚动的时候，给 url 自动添加或者改变锚点，锚点内容即为当前页面正在显示的内容的分级标题。我希望自己的博客页面也能有这样的效果，这样的话，复制 url 的时候就可以带上锚点，打开后就能快速定位到需要查看的内容处。 分析要实现这个功能，做到以下两点就可以了 判断位于当前浏览器视口顶部的元素属于哪一个分级标题的内容 将当前分级标题的 id 名作为锚点添加或修改到 url 尾部 打开控制台，可以看到，hexo next 的主题，通过 markdown 渲染出的内容，包含在 class 为 post-block 的元素中。 而所有的分级标题渲染出来后，会依次对应 html 的 h1 到 h6 标签，且 id 名与标题等同。（不过空格会被替换为 - ) 实现判断分级标题的内容我们可以通过 Element.getBoundingClientRect().top 来获取一个 dom 元素的顶部与视口顶部的距离，如果得到一个负值，那么证明这个元素是在视口之上、或者正处于视口中。我们要的就是处于视口上的那个元素。获取它的 id 即可。 修改 URL，添加或者改变锚点内容利用 HTML5 的历史记录 API，history.replaceState，它可以修改当前历史记录项，改变 url 信息，但却不会引起 url 跳转。 代码12345678910111213141516171819202122// 按从上到下的先后顺序，获取 .post-body 里面所有的 h 标签let hList = document.querySelectorAll('.post-body h1,.post-body h2,.post-body h3,.post-body h4,.post-body h5,.post-body h6');let nowAnchor = null;let time = 0;window.addEventListener('scroll', function (e) &#123; // 事件节流，每 100ms 进行一次判断 if (Date.now() - time &gt;= 100) &#123; // 逆向查找，找到的第一个负值所对应的元素即为我们需要的 for (let i = hList.length - 1; i &gt;= 0; i--) &#123; if (hList[i].getBoundingClientRect().top &lt;= 0) &#123; if (hList[i].id !== nowAnchor) &#123; let href = location.href.includes('#') ? location.href.split('#')[0] : location.href; nowAnchor = hList[i].id; history.replaceState(&#123;&#125;, '', `$&#123;href&#125;#$&#123;nowAnchor&#125;`); &#125; break; &#125; &#125; time = Date.now(); &#125;&#125;); 后记虽然实现了我想要的这个功能，可是在每一次 url 更新的时候，hexo next 自带配置的 pace 加载进度条特效也会重新进行一次，而我只希望他只在初次打开的时候有特效，更新锚点的时候不要搞事。搞了一阵子，失败了，忍痛关闭此特效功能。 如果有大佬有好的解决办法，望告知，感激不尽！ 参考资料 MDN: Element.getBoundingClientRect() MDN: History_API]]></content>
+      <categories>
+        <category>技术相关</category>
+        <category>Web</category>
+      </categories>
+      <tags>
+        <tag>锚点</tag>
+        <tag>标题</tag>
+        <tag>同步</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title><![CDATA[复制页面内容添加版权声明]]></title>
+    <url>%2Farchives%2Fa6151438.html</url>
+    <content type="text"><![CDATA[现如今，如果你要直接复制简书、掘金、CSDN 等网站上文章的内容，当你粘贴的时候就会发现，复制的文字中多了几行版权信息。 通常是这样的内容： 作者：【作者名】链接：【当前网页链接】来源：【站点名】著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处 实现方式如下：12345678910111213141516171819// 确定好会添加版权信息的复制范围，在类名为 post-body 的 dom 元素内var copyPreventContent = document.querySelector('.post-body')copyPreventContent.addEventListener('copy', function(e) &#123; // window.getSelection()返回一个 Selection 对象，此对象表示用户选择的文本范围或插入符号的当前位置 // 调用 Selection 对象的 toString() 函数，会返回被选中区域中的纯文本 var finalCopyContents = window.getSelection().toString() if(finalCopyContents) &#123; var finalCopyContents = finalCopyContents + "\n\n作者：【 作者名 】" + "\n链接：【 当前页面链接 】" + "\n来源：【 当前站点名字 】" + "\n著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处" // 调用 setData() 方法，复制 clipboardData 的内容到到剪切板 e.clipboardData.setData('text/plain', finalCopyContents) e.clipboardData.setData('text/html', `&lt;b&gt;$&#123;finalCopyContents&#125;&lt;/b&gt;`) e.preventDefault() &#125;&#125;) 参考资料： MDN: copyMDN: Selection]]></content>
+      <categories>
+        <category>技术相关</category>
+        <category>Web</category>
+      </categories>
+      <tags>
+        <tag>版权</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title><![CDATA[乐理基础学习]]></title>
+    <url>%2Farchives%2F575840b6.html</url>
+    <content type="text"><![CDATA[声波频率及标准 A声波：物体震动产生，并通过介质传播 频率：物体每一秒震动的次数 国际通用音高标准：频率为440赫兹发出的音高为标准 A 每高（低）一个八度，赫兹数就会加倍（减半） 音高频率对照表 注：记住中央C这个八度，12个音的所有赫兹数，就相当于能记住整个表格的赫兹数目 溯源：声波频率及标准A 音的性质和分类音的性质：音高（高低）、音量（强弱）、音质（长短）、音色 音：分为乐音（旋律中体现音高的音），噪音（打击乐，发动机响等没有明显体现音高的音） 频率高，则音高，反之小。振幅越大，则响度大，反之小 溯源：音高频率对照表]]></content>
+      <categories>
+        <category>音乐相关</category>
+        <category>音乐理论</category>
+      </categories>
+      <tags>
+        <tag>声波</tag>
+        <tag>音高</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title><![CDATA[费曼技巧问答式总结]]></title>
+    <url>%2Farchives%2F896890d3.html</url>
+    <content type="text"><![CDATA[费曼技巧是什么？费曼技巧，是一种通过模拟教育他人，来判断自己是否真的掌握了某项知识的学习技巧。 为什么费曼技巧有着这样的作用？因为费曼技巧符合大脑的认知规律。 怎样具体应用费曼技巧？ 实践费曼技巧后，掌握知识的表现是什么？能够用极其简单具象的东西，来回答高度抽象的问题。 费曼技巧可以用来干什么？学习任何知识，技能，深入理解其本质。 参考资料： 如何应用费曼技巧 让大脑从混沌走向有序 刻意练习的方法]]></content>
+      <categories>
+        <category>方法与技巧</category>
+        <category>学习方法</category>
+      </categories>
+      <tags>
+        <tag>费曼技巧</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title><![CDATA[ubuntu16.04下配置node.js和npm，以及npm的权限处理]]></title>
+    <url>%2Farchives%2Fc9a9fe7a.html</url>
+    <content type="text"><![CDATA[npm在ubuntu下需要root权限一直是一件很让人苦恼的事情，为了合理安全的使用npm，需要在安装好npm之后，对其进行一些必要的处理 此处安装的是8.x的node版本，最新安装方式以node官网为准 想在windows或者MacOS下配置的同学请移步这里 依次执行这两条命令，安装好node.js，同时会一并安装好npm12curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -sudo apt-get install -y nodejs 通过以下两条命令可以查看已经安装好的node以及npm的版本号12node -vnpm -v 若无异常，现在的版本会分别显示12v8.4.05.3.0 现在开始处理npm的权限问题，最新方式以npm官网为准1.执行此命令，创建一个隐藏目录用于全局安装：1mkdir ~/.npm-global 2.执行此命令，配置npm使用这个新目录：1npm config set prefix &apos;~/.npm-global&apos; 3.执行此命令，打开“~/.profile”文件：1gedit ~/.profile 在“~/.profile”文件底部添加这一行代码，并且保存文件：1export PATH=~/.npm-global/bin:$PATH 4.执行此命令，更新系统变量：1source ~/.profile 5.执行此命令，查看默认目录是否修改成功1npm config get prefix 6.不使用sudo，全局安装一个包进行测试，若不报错，则npm权限问题完美解决1npm install -g express 注： 官网上共有三种解决方法，一是将npm默认路径目录的拥有者由root用户改为当前用户，二是自己新建一个当前用户下的目录，将npm的默认目录改为此目录，三是使用Homebrew包管理器来解决问题，由于ubuntu16.04下npm的默认路径是在/usr下而不是在/usr/local下，所以方法一可能会造成设置错误，而方法三仅适用于macOS系统，本文只给出了方法二的解决方式，若有兴趣的小伙伴可以去npm官网查看方法一的处理方式。]]></content>
+      <tags>
+        <tag>ubuntu</tag>
+        <tag>node</tag>
+        <tag>npm</tag>
+      </tags>
+  </entry>
+</search>
